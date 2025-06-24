@@ -2,9 +2,8 @@ using HarmonyLib;
 using System.Collections.Generic;
 using System.Text;
 using TMPro;
-using TONX.Templates;
 using UnityEngine;
-
+using TONX.Templates;
 using static TONX.Translator;
 
 namespace TONX;
@@ -14,9 +13,27 @@ internal class PingTrackerUpdatePatch
 {
     private static float deltaTime;
     public static string ServerName = "";
+    private static TextMeshPro pingTrackerCredential = null;
+    private static AspectPosition pingTrackerCredentialAspectPos = null;
     private static void Postfix(PingTracker __instance)
     {
-        __instance.text.alignment = TextAlignmentOptions.TopRight;
+        if (pingTrackerCredential == null)
+        {
+            var uselessPingTracker = Object.Instantiate(__instance, __instance.transform.parent);
+            pingTrackerCredential = uselessPingTracker.GetComponent<TextMeshPro>();
+            Object.Destroy(uselessPingTracker);
+            pingTrackerCredential.alignment = TextAlignmentOptions.TopRight;
+            pingTrackerCredential.color = new(1f, 1f, 1f, 0.7f);
+            pingTrackerCredential.rectTransform.pivot = new(1f, 1f);  // 中心を右上角に設定
+            pingTrackerCredentialAspectPos = pingTrackerCredential.GetComponent<AspectPosition>();
+            pingTrackerCredentialAspectPos.Alignment = AspectPosition.EdgeAlignments.RightTop;
+        }
+        if (pingTrackerCredentialAspectPos)
+        {
+            pingTrackerCredentialAspectPos.DistanceFromEdge = DestroyableSingleton<HudManager>.InstanceExists && DestroyableSingleton<HudManager>.Instance.Chat.chatButton.gameObject.active
+                ? new(2.5f, 0f, -800f)
+                : new(1.8f, 0f, -800f);
+        }
 
         StringBuilder sb = new();
         sb.Append(Main.CredentialsText);
@@ -31,7 +48,7 @@ internal class PingTrackerUpdatePatch
         deltaTime += (Time.deltaTime - deltaTime) * 0.1f;
         float fps = Mathf.Ceil(1.0f / deltaTime);
 
-        sb.Append($"\r\n").Append($"<color={color}>{ping} <size=60%>Ping</size></color>  <color=#00a4ff>{fps} <size=60%>FPS</size></color>{(GameStates.IsOnlineGame ? "  " + ServerName : "")}");
+        sb.Append($"\r\n").Append($"<color={color}>{ping} ms</size> <size=60%>Ping</size></color>  <color=#00a4ff>{fps} <size=60%>FPS</size></color>  {(GameStates.IsOnlineGame ? ServerName : GetString(StringNames.LocalButton) + " <size=60%>Server</size>")}");
 
         if (!GameStates.IsModHost) sb.Append($"\r\n").Append("<size=135%>" + Utils.ColorString(Color.red, GetString("Warning.NoModHost")) + "</size>");
         else
@@ -44,18 +61,16 @@ internal class PingTrackerUpdatePatch
         }
 
         var offset_x = 1.2f; //右端からのオフセット
-        if (HudManager.InstanceExists && HudManager._instance.Chat.chatButton.active) offset_x += 0.8f; //チャットボタンがある場合の追加オフセット
+        if (HudManager.InstanceExists && HudManager._instance.Chat.chatButton.gameObject.active) offset_x += 0.8f; //チャットボタンがある場合の追加オフセット
         if (FriendsListManager.InstanceExists && FriendsListManager._instance.FriendsListButton.Button.active) offset_x += 0.8f; //フレンドリストボタンがある場合の追加オフセット
         __instance.GetComponent<AspectPosition>().DistanceFromEdge = new Vector3(offset_x, 0f, 0f);
 
-        __instance.text.text = sb.ToString();
+        pingTrackerCredential.text = sb.ToString();
     }
 }
 [HarmonyPatch(typeof(VersionShower), nameof(VersionShower.Start))]
 internal class VersionShowerStartPatch
 {
-    public static GameObject OVersionShower;
-    private static TextMeshPro VisitText;
     private static void Postfix(VersionShower __instance)
     {
         TMPTemplate.SetBase(__instance.text);
@@ -76,26 +91,16 @@ internal class VersionShowerStartPatch
         if (Main.hasArgumentException && ErrorText.Instance != null)
             ErrorText.Instance.AddError(ErrorCode.Main_DictionaryError);
 
-        if ((OVersionShower = GameObject.Find("VersionShower")) != null && VisitText == null)
-        {
-            VisitText = Object.Instantiate(__instance.text);
-            VisitText.name = "TONX User Counter";
-            VisitText.alignment = TextAlignmentOptions.Left;
-            VisitText.text = ModUpdater.visit > 0
-                ? string.Format(GetString("TONXVisitorCount"), Main.ModColor, ModUpdater.visit)
-                : GetString("ConnectToTONXServerFailed");
-            VisitText.transform.localScale = new Vector3(0.7f, 0.7f, 0.7f);
-            VisitText.transform.localPosition = new Vector3(-3.92f, -2.9f, 0f);
-            VisitText.enabled = GameObject.Find("TONX Background") != null;
+        __instance.text.text += "\n" + $"{(ModUpdater.visit > 0
+            ? string.Format(GetString("TONXVisitorCount"), Main.ModColor, ModUpdater.visit)
+            : GetString("ConnectToTONXServerFailed"))}";
 
-            __instance.text.alignment = TextAlignmentOptions.Left;
-            OVersionShower.transform.localPosition = new Vector3(-4.92f, -3.3f, 0f);
-
-            var ap1 = OVersionShower.GetComponent<AspectPosition>();
-            if (ap1 != null) Object.Destroy(ap1);
-            var ap2 = VisitText.GetComponent<AspectPosition>();
-            if (ap2 != null) Object.Destroy(ap2);
-        };
+        if (GameObject.Find("MainUI") == null) return;
+        __instance.text.alignment = TextAlignmentOptions.Left;
+        __instance.transform.localScale = new Vector3(1.0f, 1.0f, 1.0f);
+        var ap1 = __instance.GetComponent<AspectPosition>();
+        ap1.Alignment = AspectPosition.EdgeAlignments.LeftBottom;
+        ap1.DistanceFromEdge = new(1.0f, -0.4f);
     }
 }
 
@@ -114,7 +119,7 @@ internal class TitleLogoPatch
     public static GameObject AULogo;
     public static GameObject BottomButtonBounds;
 
-    public static Vector3 RightPanelOp;
+    public static Vector3 RightPanelOp = new(2.8f, -0.4f, -5.0f);
 
     private static void Postfix(MainMenuManager __instance)
     {
@@ -172,18 +177,23 @@ internal class TitleLogoPatch
         foreach (var kvp in mainButtons)
             kvp.Key.Do(button => FormatButtonColor(button, kvp.Value.Item1, kvp.Value.Item2, kvp.Value.Item3, kvp.Value.Item4, kvp.Value.Item5));
 
+        try
+        {
+            mainButtons?.Keys?.Flatten()?.DoIf(x => x != null, x => x.buttonText.color = Color.white);
+        }
+        catch { }
+
         GameObject.Find("Divider")?.SetActive(false);
 
         if (!(RightPanel = GameObject.Find("RightPanel"))) return;
         var rpap = RightPanel.GetComponent<AspectPosition>();
         if (rpap) Object.Destroy(rpap);
-        RightPanelOp = RightPanel.transform.localPosition;
         RightPanel.transform.localPosition = RightPanelOp + new Vector3(10f, 0f, 0f);
         RightPanel.GetComponent<SpriteRenderer>().color = new(1f, 0.78f, 0.9f, 1f);
 
         CloseRightButton = new GameObject("CloseRightPanelButton");
         CloseRightButton.transform.SetParent(RightPanel.transform);
-        CloseRightButton.transform.localPosition = new Vector3(-4.78f, 1.3f, 1f);
+        CloseRightButton.transform.localPosition = new Vector3(-4.78f * Utils.GetResolutionOffset(Screen.width, Screen.height), 1.3f, 1f);
         CloseRightButton.transform.localScale = new(1f, 1f, 1f);
         CloseRightButton.AddComponent<BoxCollider2D>().size = new(0.6f, 1.5f);
         var closeRightSpriteRenderer = CloseRightButton.AddComponent<SpriteRenderer>();
@@ -201,7 +211,7 @@ internal class TitleLogoPatch
         var ttap = Tint.GetComponent<AspectPosition>();
         if (ttap) Object.Destroy(ttap);
         Tint.transform.SetParent(RightPanel.transform);
-        Tint.transform.localPosition = new Vector3(-0.0824f, 0.0513f, Tint.transform.localPosition.z);
+        Tint.transform.localPosition = new Vector3(-0.0824f * Utils.GetResolutionOffset(Screen.width, Screen.height), 0.0513f, Tint.transform.localPosition.z);
         Tint.transform.localScale = new Vector3(1f, 1f, 1f);
 
         if (!DebugModeManager.AmDebugger)
@@ -221,7 +231,7 @@ internal class TitleLogoPatch
 
         if (!(Sizer = GameObject.Find("Sizer"))) return;
         if (!(AULogo = GameObject.Find("LOGO-AU"))) return;
-        Sizer.transform.localPosition += new Vector3(0f, 0.12f, 0f);
+        Sizer.transform.localPosition = new Vector3(-4.0f * Utils.GetResolutionOffset(Screen.width, Screen.height), 1.4f, -1.0f);
         AULogo.transform.localScale = new Vector3(0.66f, 0.67f, 1f);
         AULogo.transform.position += new Vector3(0f, 0.1f, 0f);
         var logoRenderer = AULogo.GetComponent<SpriteRenderer>();
@@ -229,6 +239,9 @@ internal class TitleLogoPatch
 
         if (!(BottomButtonBounds = GameObject.Find("BottomButtonBounds"))) return;
         BottomButtonBounds.transform.localPosition -= new Vector3(0f, 0.1f, 0f);
+
+        var mainButtonsobj = GameObject.Find("Main Buttons");
+        mainButtonsobj.transform.position = new Vector3(-3.4f * Utils.GetResolutionOffset(Screen.width, Screen.height), mainButtonsobj.transform.position.y, mainButtonsobj.transform.position.z);
     }
 }
 [HarmonyPatch(typeof(ModManager), nameof(ModManager.LateUpdate))]
@@ -256,5 +269,21 @@ internal class CreditsScreenPopUpPatch
     public static void Postfix(CreditsScreenPopUp __instance)
     {
         __instance.BackButton.transform.parent.FindChild("Background").gameObject.SetActive(false);
+    }
+}
+[HarmonyPatch(typeof(ResolutionManager))]
+internal class ResolutionManagerPatch
+{
+    [HarmonyPatch(nameof(ResolutionManager.SetResolution))]
+    public static void Postfix(int width, int height)
+    {
+        if (GameObject.Find("MainUI") == null) return;
+        var offset = Utils.GetResolutionOffset(width, height);
+        TitleLogoPatch.CloseRightButton.transform.localPosition = new Vector3(-4.78f * offset, 1.3f, 1.0f);
+        TitleLogoPatch.Tint.transform.localPosition = new Vector3(-0.0824f * offset, 0.0513f, TitleLogoPatch.Tint.transform.localPosition.z);
+        TitleLogoPatch.Sizer.transform.localPosition = new Vector3(-4.0f * offset, 1.4f, -1.0f);
+        var mainButtons = GameObject.Find("Main Buttons");
+        mainButtons.transform.position = new Vector3(-3.4f * offset, mainButtons.transform.position.y, mainButtons.transform.position.z);
+        MainMenuButtonHoverAnimation.RefreshButtons(mainButtons);
     }
 }

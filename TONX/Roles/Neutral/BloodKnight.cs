@@ -16,7 +16,7 @@ public sealed class BloodKnight : RoleBase, IKiller, ISchrodingerCatOwner
            CustomRoleTypes.Neutral,
            50923,
            SetupOptionItem,
-           "bn|ÊÈÑªòTÊ¿|ÑªÆï|ÆïÊ¿",
+           "bn|å—œè¡€éª‘å£«|éª‘å£«",
            "#630000",
            true,
            countType: CountTypes.BloodKnight
@@ -57,17 +57,16 @@ public sealed class BloodKnight : RoleBase, IKiller, ISchrodingerCatOwner
     public override void Add() => ProtectStartTime = 0;
     private void SendRPC()
     {
-        using var sender = CreateSender(CustomRPC.SetBKTimer);
+        using var sender = CreateSender();
         sender.Writer.Write(ProtectStartTime.ToString());
     }
-    public override void ReceiveRPC(MessageReader reader, CustomRPC rpcType)
+    public override void ReceiveRPC(MessageReader reader)
     {
-        if (rpcType != CustomRPC.SetBKTimer) return;
+        
         ProtectStartTime = long.Parse(reader.ReadString());
     }
     public float CalculateKillCooldown() => OptionKillCooldown.GetFloat();
     public override void ApplyGameOptions(IGameOptions opt) => opt.SetVision(OptionHasImpostorVision.GetBool());
-    public static void SetHudActive(HudManager __instance, bool _) => __instance.SabotageButton.ToggleVisible(false);
     public bool CanUseSabotageButton() => false;
     private bool InProtect() => ProtectStartTime != 0 && ProtectStartTime + OptionProtectDuration.GetFloat() > Utils.GetTimeStamp();
     public void OnMurderPlayerAsKiller(MurderInfo info)

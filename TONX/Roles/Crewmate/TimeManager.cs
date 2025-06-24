@@ -15,7 +15,7 @@ public sealed class TimeManager : RoleBase, IMeetingTimeAlterable
             CustomRoleTypes.Crewmate,
             21600,
             SetupOptionItem,
-            "tm|•rég²Ù¿ØÕß|Ê±¼ä²Ù¿ØÈË|Ê±¼ä²Ù¿Ø|Ê±¼ä¹ÜÀí|Ê±¼ä¹ÜÀí´óÊ¦|Ê±¼ä¹ÜÀíÕß|Ê±¼ä¹ÜÀíÈË",
+            "tm|æ™‚é–“æ“æ§è€…|æ—¶é—´æ“æ§äºº|æ—¶é—´æ“æ§|æ—¶é—´ç®¡ç†|æ—¶é—´ç®¡ç†å¤§å¸ˆ|æ—¶é—´ç®¡ç†è€…|æ—¶é—´ç®¡ç†äºº",
             "#6495ed"
         );
     public TimeManager(PlayerControl player)

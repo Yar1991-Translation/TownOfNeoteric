@@ -11,6 +11,7 @@ using TONX.Roles.AddOns.Common;
 using TONX.Roles.AddOns.Crewmate;
 using TONX.Roles.AddOns.Impostor;
 using TONX.Roles.Core.Interfaces;
+using static TONX.MeetingHudPatch;
 
 namespace TONX.Roles.Core;
 
@@ -75,10 +76,13 @@ public static class CustomRoleManager
                 }
             }
             // 凶杀检查击杀
-            if (!killer.OnCheckMurderAsKiller(info))
+            if (!DoubleTrigger.OnCheckMurderAsKiller(info))
             {
-                Logger.Info($"凶手阻塞了击杀", "CheckMurder");
-                return false;
+                if (!killer.OnCheckMurderAsKiller(info))
+                {
+                    Logger.Info($"凶手阻塞了击杀", "CheckMurder");
+                    return false;
+                }
             }
             if (killer.IsKiller && targetRole != null)
             {
@@ -102,6 +106,24 @@ public static class CustomRoleManager
                 }
             }
         }
+        if (CustomRoles.Madmate.IsEnable() && Options.MadmateSpawnMode.GetInt() == 1)
+        {
+            if (Main.AllPlayerControls.Count(p => p.Is(CustomRoles.Madmate)) < CustomRoles.Madmate.GetCount() && attemptTarget.CanBeMadmate())
+            {
+                attemptTarget.RpcSetCustomRole(CustomRoles.Madmate);
+                Logger.Info($"注册附加职业：{attemptTarget.GetNameWithRole()} => {CustomRoles.Madmate}", "AssignCustomSubRoles");
+                attemptTarget.ShowPopUp(Translator.GetString("BecomeMadmateCuzMadmateMode"));
+                attemptKiller.SetKillCooldownV2(target: attemptTarget, forceAnime: true);
+                return false;
+            }
+        }
+
+        if (Main.ShieldPlayer != byte.MaxValue && Main.ShieldPlayer == attemptTarget.PlayerId && Utils.IsAllAlive)
+        {
+            Main.ShieldPlayer = byte.MaxValue;
+            attemptKiller.SetKillCooldownV2(target: attemptTarget, forceAnime: true);
+            return false;
+        }
 
         //キル可能だった場合のみMurderPlayerに進む
         if (info.CanKill && info.DoKill)
@@ -109,6 +131,7 @@ public static class CustomRoleManager
             // 调用职业类对击杀发生前进行预处理如设置冷却等操作
             if (killerRole is IKiller killer2) killer2?.BeforeMurderPlayerAsKiller(info);
             targetRole?.BeforeMurderPlayerAsTarget(info);
+            if (!info.CanKill || !info.DoKill) goto StopMurder;
 
             //MurderPlayer用にinfoを保存
             CheckMurderInfos[appearanceKiller.PlayerId] = info;
@@ -117,6 +140,10 @@ public static class CustomRoleManager
             return true;
         }
         else
+        {
+            goto StopMurder;
+        }
+        StopMurder:
         {
             if (!info.CanKill) Logger.Info($"{appearanceTarget.GetNameWithRole()} 无法被击杀", "CheckMurder");
             if (!info.DoKill) Logger.Info($"{appearanceKiller.GetNameWithRole()} 无法击杀", "CheckMurder");
@@ -244,6 +271,8 @@ public static class CustomRoleManager
                 cancel = true;
             }
         }
+        if (Options.DeadImpCantSabotage.GetBool() && player.IsImp()) cancel = true;
+        if (Fool.OptionImpFoolCanNotSabotage.GetBool() && player.Is(CustomRoles.Fool) && player.IsImp()) cancel = true;
         return !cancel;
     }
     // ==初始化处理 ==
@@ -262,14 +291,22 @@ public static class CustomRoleManager
         OnCheckMurderPlayerOthers_After.Clear();
         OnFixedUpdateOthers.Clear();
     }
-    public static void CreateInstance()
+    public static void CreateInstance(bool forSubRoles = false)
     {
-        foreach (var pc in Main.AllPlayerControls)
+        if (forSubRoles)
         {
-            CreateInstance(pc.GetCustomRole(), pc);
-
-            foreach (var subRole in PlayerState.GetByPlayerId(pc.PlayerId).SubRoles)
-                CreateInstance(subRole, pc);
+            foreach (var pc in Main.AllPlayerControls)
+            {
+                foreach (var subRole in PlayerState.GetByPlayerId(pc.PlayerId).SubRoles)
+                    CreateInstance(subRole, pc);
+            }
+        }
+        else
+        {
+            foreach (var pc in Main.AllPlayerControls)
+            {
+                CreateInstance(pc.GetCustomRole(), pc);
+            }
         }
     }
     public static void CreateInstance(CustomRoles role, PlayerControl player)
@@ -355,10 +392,10 @@ public static class CustomRoleManager
     /// </summary>
     /// <param name="reader"></param>
     /// <param name="rpcType"></param>
-    public static void DispatchRpc(MessageReader reader, CustomRPC rpcType)
+    public static void DispatchRpc(MessageReader reader)
     {
         var playerId = reader.ReadByte();
-        GetByPlayerId(playerId)?.ReceiveRPC(reader, rpcType);
+        GetByPlayerId(playerId)?.ReceiveRPC(reader);
     }
     //NameSystem
     public static HashSet<Func<PlayerControl, PlayerControl, bool, string>> MarkOthers = new();
@@ -499,6 +536,7 @@ public enum CustomRoles
     //Impostor(Vanilla)
     Impostor,
     Shapeshifter,
+    Phantom,
     //Impostor
     BountyHunter,
     Fireworker,
@@ -548,6 +586,8 @@ public enum CustomRoles
     Engineer,
     GuardianAngel,
     Scientist,
+    Tracker,
+    Noisemaker,
     //Crewmate
     Luckey,
     LazyGuy,
@@ -588,23 +628,26 @@ public enum CustomRoles
     Terrorist,
     Executioner,
     Jackal,
-    Innocent, //TODO
+    Innocent, 
     Pelican,
-    Revolutionist, //TODO
+    Revolutionist, 
     Hater,
     Konan, //TODO
     Demon,
-    Stalker, //TODO
+    Stalker, 
     Workaholic,
-    Collector, //TODO
-    Provocateur, //TODO
-    Sunnyboy, //TODO
+    Collector, 
+    Provocateur, 
+    Sunnyboy, 
     BloodKnight,
     Follower,
     Succubus,
     PlagueDoctor,
     SchrodingerCat,
 
+    //SoloKombat
+    KB_Normal,
+    
     //GM
     GM,
 

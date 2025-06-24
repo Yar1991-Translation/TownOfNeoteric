@@ -28,7 +28,6 @@ internal class EAC
     {
         if (!AmongUsClient.Instance.AmHost) return false;
         if (pc == null || reader == null || pc.AmOwner) return false;
-        if (pc.GetClient()?.PlatformData?.Platform is Platforms.Android or Platforms.IPhone or Platforms.Switch or Platforms.Playstation or Platforms.Xbox or Platforms.StandaloneMac) return false;
         try
         {
             MessageReader sr = MessageReader.Get(reader);
@@ -36,6 +35,7 @@ internal class EAC
             switch (rpc)
             {
                 case RpcCalls.SetName:
+                    sr.ReadUInt32();
                     string name = sr.ReadString();
                     if (sr.BytesRemaining > 0 && sr.ReadBoolean()) return false;
                     if (
@@ -233,7 +233,7 @@ internal class EAC
     public static void Report(PlayerControl pc, string reason)
     {
         string msg = $"{pc.GetClientId()}|{pc.FriendCode}|{pc.Data.PlayerName}|{reason}";
-        Cloud.SendData(msg);
+        // Cloud.SendData(msg);
         Logger.Warn($"EAC报告：{pc.GetRealName()}: {reason}", "EAC Cloud");
     }
     public static bool ReceiveInvalidRpc(PlayerControl pc, byte callId)

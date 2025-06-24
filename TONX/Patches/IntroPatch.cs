@@ -162,6 +162,17 @@ class IntroCutscenePatch
             PlayerControl.LocalPlayer.Data.Role.IntroSound = GetIntroSound(RoleTypes.Impostor);
         }
 
+        if (Options.CurrentGameMode == CustomGameMode.SoloKombat)
+        {
+            var color = ColorUtility.TryParseHtmlString("#f55252", out var c) ? c : new(255, 255, 255, 255);
+            __instance.TeamTitle.text = Utils.GetRoleName(role);
+            __instance.TeamTitle.color = Utils.GetRoleColor(role);
+            __instance.ImpostorText.gameObject.SetActive(true);
+            __instance.ImpostorText.text = GetString("ModeSoloKombat");
+            __instance.BackgroundBar.material.color = color;
+            PlayerControl.LocalPlayer.Data.Role.IntroSound = DestroyableSingleton<HnSImpostorScreamSfx>.Instance.HnSOtherImpostorTransformSfx;
+        }
+
         if (Input.GetKey(KeyCode.RightShift))
         {
             __instance.TeamTitle.text = "明天就跑路啦";
@@ -241,13 +252,28 @@ class IntroCutscenePatch
     public static void OnDestroy_Postfix(IntroCutscene __instance)
     {
         if (!GameStates.IsInGame) return;
-        Main.introDestroyed = true;
+        Main.isFirstTurn = true;
+        var mapId = Main.NormalOptions.MapId;
+        // エアシップではまだ湧かない
+        if ((MapNames)mapId != MapNames.Airship)
+        {
+            foreach (var state in PlayerState.AllPlayerStates.Values)
+            {
+                state.HasSpawned = true;
+            }
+        }
+
         if (AmongUsClient.Instance.AmHost)
         {
-            if (Main.NormalOptions.MapId != 4)
+            if (mapId != 4)
             {
-                Main.AllPlayerControls.Do(pc => pc.RpcResetAbilityCooldown());
-                if (Options.FixFirstKillCooldown.GetBool())
+                Main.AllPlayerControls.Do(pc =>
+                {
+                    pc.GetRoleClass()?.OnSpawn(true);
+                    pc.SyncSettings();
+                    pc.RpcResetAbilityCooldown();
+                });
+                if (Options.FixFirstKillCooldown.GetBool() && Options.CurrentGameMode != CustomGameMode.SoloKombat)
                     _ = new LateTask(() =>
                     {
                         if (GameStates.IsInTask)
@@ -270,7 +296,7 @@ class IntroCutscenePatch
             if (RandomSpawn.IsRandomSpawn())
             {
                 RandomSpawn.SpawnMap map;
-                switch (Main.NormalOptions.MapId)
+                switch (mapId)
                 {
                     case 0:
                         map = new RandomSpawn.SkeldSpawnMap();
@@ -278,6 +304,14 @@ class IntroCutscenePatch
                         break;
                     case 1:
                         map = new RandomSpawn.MiraHQSpawnMap();
+                        Main.AllPlayerControls.Do(map.RandomTeleport);
+                        break;
+                    case 2:
+                        map = new RandomSpawn.PolusSpawnMap();
+                        Main.AllPlayerControls.Do(map.RandomTeleport);
+                        break;
+                    case 5:
+                        map = new RandomSpawn.FungleSpawnMap();
                         Main.AllPlayerControls.Do(map.RandomTeleport);
                         break;
                 }
@@ -292,5 +326,8 @@ class IntroCutscenePatch
             }
         }
         Logger.Info("OnDestroy", "IntroCutscene");
+
+        GameStates.InTask = true;
+        Logger.Info("タスクフェイズ開始", "Phase");
     }
 }

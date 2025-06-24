@@ -31,6 +31,7 @@ public class PlayerState
     }
     public (DateTime, byte) RealKiller;
     public PlainShipRoom LastRoom;
+    public bool HasSpawned { get; set; } = false;
     public Dictionary<byte, string> TargetColorData;
     public PlayerState(byte playerId)
     {
@@ -67,12 +68,13 @@ public class PlayerState
         MainRole = role;
 
         CountType = CustomRoleManager.GetRoleInfo(role) is SimpleRoleInfo roleInfo ?
-               roleInfo.CountType :
-               role switch
-               {
-                   CustomRoles.GM => CountTypes.OutOfGame,
-                   _ => role.IsImpostor() ? CountTypes.Impostor : CountTypes.Crew,
-               };
+            roleInfo.CountType :
+            role switch
+            {
+                CustomRoles.KB_Normal => CountTypes.Impostor,
+                CustomRoles.GM => CountTypes.OutOfGame,
+                _ => role.IsImpostor() ? CountTypes.Impostor : CountTypes.Crew,
+            };
     }
     public void SetSubRole(CustomRoles role, bool AllReplace = false)
     {
@@ -230,6 +232,7 @@ public class PlayerVersion
 public static class GameStates
 {
     public static bool InGame = false;
+    public static bool InTask = false;
     public static bool AlreadyDied = false;
     public static bool IsModHost => PlayerControl.AllPlayerControls.ToArray().FirstOrDefault(x => x.PlayerId == 0 && x.IsModClient());
     public static bool IsLobby => AmongUsClient.Instance.GameState == AmongUsClient.GameStates.Joined;
@@ -239,7 +242,7 @@ public static class GameStates
     public static bool IsOnlineGame => AmongUsClient.Instance.NetworkMode == NetworkModes.OnlineGame;
     public static bool IsLocalGame => AmongUsClient.Instance.NetworkMode == NetworkModes.LocalGame;
     public static bool IsFreePlay => AmongUsClient.Instance.NetworkMode == NetworkModes.FreePlay;
-    public static bool IsInTask => InGame && !MeetingHud.Instance;
+    public static bool IsInTask => InTask;
     public static bool IsMeeting => InGame && MeetingHud.Instance;
     public static bool IsVoting => IsMeeting && MeetingHud.Instance.state is MeetingHud.VoteStates.Voted or MeetingHud.VoteStates.NotVoted;
     public static bool IsCountDown => GameStartManager.InstanceExists && GameStartManager.Instance.startState == GameStartManager.StartingStates.Countdown;
@@ -250,7 +253,7 @@ public static class GameStates
 public static class MeetingStates
 {
     public static DeadBody[] DeadBodies = null;
-    public static GameData.PlayerInfo ReportTarget = null;
+    public static NetworkedPlayerInfo ReportTarget = null;
     public static bool IsEmergencyMeeting => ReportTarget == null;
     public static bool IsExistDeadBody => DeadBodies.Length > 0;
     public static bool MeetingCalled = false;

@@ -10,7 +10,7 @@ namespace TONX;
 class ExileControllerWrapUpPatch
 {
     public static List<Action> ActionsOnWrapUp = new();
-    public static GameData.PlayerInfo AntiBlackout_LastExiled;
+    public static NetworkedPlayerInfo AntiBlackout_LastExiled;
     [HarmonyPatch(typeof(ExileController), nameof(ExileController.WrapUp))]
     class BaseExileControllerPatch
     {
@@ -18,11 +18,11 @@ class ExileControllerWrapUpPatch
         {
             try
             {
-                WrapUpPostfix(__instance.exiled);
+                WrapUpPostfix(__instance.initData.networkedPlayer);
             }
             finally
             {
-                WrapUpFinalizer(__instance.exiled);
+                WrapUpFinalizer(__instance.initData.networkedPlayer);
             }
         }
     }
@@ -34,21 +34,29 @@ class ExileControllerWrapUpPatch
         {
             try
             {
-                WrapUpPostfix(__instance.exiled);
+                WrapUpPostfix(__instance.initData.networkedPlayer);
             }
             finally
             {
-                WrapUpFinalizer(__instance.exiled);
+                WrapUpFinalizer(__instance.initData.networkedPlayer);
             }
         }
     }
-    static void WrapUpPostfix(GameData.PlayerInfo exiled)
+    static void WrapUpPostfix(NetworkedPlayerInfo exiled)
     {
         if (AntiBlackout.OverrideExiledPlayer)
         {
             exiled = AntiBlackout_LastExiled;
         }
-
+        var mapId = Main.NormalOptions.MapId;
+        // エアシップではまだ湧かない
+        if ((MapNames)mapId != MapNames.Airship)
+        {
+            foreach (var state in PlayerState.AllPlayerStates.Values)
+            {
+                state.HasSpawned = true;
+            }
+        }
         bool DecidedWinner = false;
         if (!AmongUsClient.Instance.AmHost) return; //ホスト以外はこれ以降の処理を実行しません
         AntiBlackout.RestoreIsDead(doSend: false);
@@ -81,7 +89,7 @@ class ExileControllerWrapUpPatch
         if (RandomSpawn.IsRandomSpawn())
         {
             RandomSpawn.SpawnMap map;
-            switch (Main.NormalOptions.MapId)
+            switch (mapId)
             {
                 case 0:
                     map = new RandomSpawn.SkeldSpawnMap();
@@ -104,11 +112,20 @@ class ExileControllerWrapUpPatch
         FallFromLadder.Reset();
         Utils.CountAlivePlayers(true);
         Utils.AfterMeetingTasks();
-        Utils.SyncAllSettings();
+        if (mapId != 4)
+        {
+            foreach (var pc in Main.AllPlayerControls)
+            {
+                pc.GetRoleClass()?.OnSpawn();
+                pc.SyncSettings();
+                pc.RpcResetAbilityCooldown();
+            }
+        }
+        if (Camouflage.IsCamouflage && Utils.IsActive(SystemTypes.Comms)) foreach (var pc in Main.AllPlayerControls) Camouflage.RpcSetSkin(pc); // 会议结束后恢复小黑人
         Utils.NotifyRoles();
     }
 
-    static void WrapUpFinalizer(GameData.PlayerInfo exiled)
+    static void WrapUpFinalizer(NetworkedPlayerInfo exiled)
     {
         //WrapUpPostfixで例外が発生しても、この部分だけは確実に実行されます。
         if (AmongUsClient.Instance.AmHost)
@@ -121,7 +138,7 @@ class ExileControllerWrapUpPatch
                     exiled != null && //exiledがnullでない
                     exiled.Object != null) //exiled.Objectがnullでない
                 {
-                    exiled.Object.RpcExileV2();
+                    exiled.Object.RpcExile();
                 }
             }, 0.5f, "Restore IsDead Task");
             _ = new LateTask(() =>
@@ -135,7 +152,7 @@ class ExileControllerWrapUpPatch
                     Logger.Info($"{player.GetNameWithRole()}を{x.Value}で死亡させました", "AfterMeetingDeath");
                     state.DeathReason = x.Value;
                     state.SetDead();
-                    player?.RpcExileV2();
+                    player?.RpcExile();
                     if (x.Value == CustomDeathReason.Suicide)
                         player?.SetRealKiller(player, true);
                     if (requireResetCam)
@@ -150,6 +167,8 @@ class ExileControllerWrapUpPatch
         GameStates.AlreadyDied |= !Utils.IsAllAlive;
         RemoveDisableDevicesPatch.UpdateDisableDevices();
         SoundManager.Instance.ChangeAmbienceVolume(DataManager.Settings.Audio.AmbienceVolume);
+
+        GameStates.InTask = true;
         Logger.Info("タスクフェイズ開始", "Phase");
     }
 }

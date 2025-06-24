@@ -3,6 +3,7 @@ using Hazel;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppSystem.Linq;
 using InnerNet;
+using System.Data;
 using System.Linq;
 using TONX.Roles.AddOns.Common;
 using TONX.Roles.Core;
@@ -23,7 +24,7 @@ public class PlayerGameOptionsSender : GameOptionsSender
         .ToList().ForEach(sender => sender.SetDirty());
 
     public override IGameOptions BasedGameOptions =>
-        Main.RealOptionsData.Restore(new NormalGameOptionsV07(new UnityLogger().Cast<ILogger>()).Cast<IGameOptions>());
+        Main.RealOptionsData.Restore(new NormalGameOptionsV09(new UnityLogger().Cast<ILogger>()).Cast<IGameOptions>());
     public override bool IsDirty { get; protected set; }
 
     public PlayerControl player;
@@ -75,6 +76,7 @@ public class PlayerGameOptionsSender : GameOptionsSender
         AURoleOptions.SetOpt(opt);
         var state = PlayerState.GetByPlayerId(player.PlayerId);
         opt.BlackOut(state.IsBlackOut);
+        opt.SetInt(Int32OptionNames.RulePreset, (int)GameOptionsManager.Instance.CurrentGameOptions.RulesPreset);
 
         CustomRoles role = player.GetCustomRole();
         switch (role.GetCustomRoleTypes())
@@ -83,7 +85,10 @@ public class PlayerGameOptionsSender : GameOptionsSender
                 AURoleOptions.ShapeshifterCooldown = Options.DefaultShapeshiftCooldown.GetFloat();
                 break;
         }
-
+        if (!role.IsImpostor())
+        {
+            AURoleOptions.NoisemakerImpostorAlert = true;
+        }
         var roleClass = player.GetRoleClass();
         roleClass?.ApplyGameOptions(opt);
         foreach (var subRole in player.GetCustomSubRoles())
@@ -112,7 +117,7 @@ public class PlayerGameOptionsSender : GameOptionsSender
             }
         }
 
-        // ÎªÃÔ»óÕßµÄĞ×ÊÖ
+        // ä¸ºè¿·æƒ‘è€…çš„å‡¶æ‰‹
         if (Main.AllPlayerControls.Any(x => x.Is(CustomRoles.Bewilder) && !x.IsAlive() && x.GetRealKiller()?.PlayerId == player.PlayerId && !x.Is(CustomRoles.Hangman)))
         {
             opt.SetVision(false);
@@ -120,7 +125,7 @@ public class PlayerGameOptionsSender : GameOptionsSender
             opt.SetFloat(FloatOptionNames.ImpostorLightMod, Bewilder.OptionVision.GetFloat());
         }
 
-        // Í¶ÖÀÉµ¹Ïµ°À²£¡£¡£¡£¡£¡
+        // æŠ•æ·å‚»ç“œè›‹å•¦ï¼ï¼ï¼ï¼ï¼
         if (Grenadier.IsBlinding(player))
         {
             opt.SetVision(false);

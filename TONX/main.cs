@@ -8,7 +8,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using TONX.Attributes;
+using TONX.Modules;
 using TONX.Roles.Core;
 using UnityEngine;
 
@@ -36,9 +38,9 @@ public class Main : BasePlugin
     public const string DebugKeySalt = "59687b";
     public static ConfigEntry<string> DebugKeyInput { get; private set; }
     // == 版本相关设定 / Version Config ==
-    public const string LowestSupportedVersion = "2023.10.24";
+    public const string LowestSupportedVersion = "2025.3.25"; // 16.0.0
     public static readonly bool IsPublicAvailableOnThisVersion = false;
-    public const string PluginVersion = "3.0.1";
+    public const string PluginVersion = "3.0.2";
     public const int PluginCreation = 1;
     // == 链接相关设定 / Link Config ==
     public static readonly bool ShowWebsiteButton = true;
@@ -53,19 +55,39 @@ public class Main : BasePlugin
 
     public Harmony Harmony { get; } = new Harmony(PluginGuid);
     public static Version version = Version.Parse(PluginVersion);
+    public static Color UnityModColor
+    {
+        get
+        {
+            if (!_unityModColor.HasValue)
+            {
+                if (ColorUtility.TryParseHtmlString(ModColor, out var unityColor))
+                {
+                    _unityModColor = unityColor;
+                }
+                else
+                {
+                    // failure
+                    return Color.gray;
+                }
+            }
+            return _unityModColor.Value;
+        }
+    }
+    private static Color? _unityModColor;
     public static BepInEx.Logging.ManualLogSource Logger;
     public static bool hasArgumentException = false;
     public static string ExceptionMessage;
     public static bool ExceptionMessageIsShown = false;
     public static string CredentialsText;
-    public static NormalGameOptionsV07 NormalOptions => GameOptionsManager.Instance.currentNormalGameOptions;
+    public static NormalGameOptionsV09 NormalOptions => GameOptionsManager.Instance.currentNormalGameOptions;
     //Client Options
     public static ConfigEntry<string> HideName { get; private set; }
     public static ConfigEntry<string> HideColor { get; private set; }
     public static ConfigEntry<int> MessageWait { get; private set; }
     public static ConfigEntry<bool> ShowResults { get; private set; }
     public static ConfigEntry<bool> UnlockFPS { get; private set; }
-    public static ConfigEntry<bool> HorseMode { get; private set; }
+    public static ConfigEntry<bool> LongMode { get; private set; }
     public static ConfigEntry<bool> AutoStartGame { get; private set; }
     public static ConfigEntry<bool> AutoEndGame { get; private set; }
     public static ConfigEntry<bool> ForceOwnLanguage { get; private set; }
@@ -111,7 +133,7 @@ public class Main : BasePlugin
     public static Dictionary<byte, byte> ShapeshiftTarget = new();
     public static bool VisibleTasksCount = false;
     public static string HostNickName = "";
-    public static bool introDestroyed = false;
+    public static bool isFirstTurn = false;
     public static float DefaultCrewmateVision;
     public static float DefaultImpostorVision;
     public static bool IsInitialRelease = DateTime.Now.Month == 1 && DateTime.Now.Day is 17;
@@ -154,7 +176,7 @@ public class Main : BasePlugin
         DebugKeyInput = Config.Bind("Authentication", "Debug Key", "");
         ShowResults = Config.Bind("Result", "Show Results", true);
         UnlockFPS = Config.Bind("Client Options", "UnlockFPS", false);
-        HorseMode = Config.Bind("Client Options", "HorseMode", false);
+        LongMode = Config.Bind("Client Options", "LongMode", false);
         AutoStartGame = Config.Bind("Client Options", "AutoStartGame", false);
         AutoEndGame = Config.Bind("Client Options", "AutoEndGame", false);
         ForceOwnLanguage = Config.Bind("Client Options", "ForceOwnLanguage", false);
@@ -222,6 +244,9 @@ public class Main : BasePlugin
                 {CustomRoles.Crewmate, "#ffffff"},
                 {CustomRoles.Engineer, "#8cffff"},
                 {CustomRoles.Scientist, "#8cffff"},
+                {CustomRoles.Noisemaker, "#8cffff"},
+                {CustomRoles.Tracker, "#8cffff"},
+                {CustomRoles.Phantom, "#ff1919"},
                 {CustomRoles.GuardianAngel, "#ffffff"},
                 {CustomRoles.Impostor, "#ff1919"},
                 {CustomRoles.Shapeshifter, "#ff1919"},
@@ -251,6 +276,9 @@ public class Main : BasePlugin
                 {CustomRoles.Charmed, "#ff00ff"},
                 {CustomRoles.Bait, "#00f7ff"},
                 {CustomRoles.Beartrap, "#5a8fd0"},
+
+                //SoloKombat
+                {CustomRoles.KB_Normal, "#f55252"}
             };
             var type = typeof(RoleBase);
             var roleClassArray =
@@ -288,6 +316,8 @@ public class Main : BasePlugin
 
         ClassInjector.RegisterTypeInIl2Cpp<ErrorText>();
 
+        Task.Run(SystemEnvironment.SetEnvironmentVariablesAsync);
+        
         Harmony.PatchAll();
 
         if (!DebugModeManager.AmDebugger) ConsoleManager.DetachConsole();

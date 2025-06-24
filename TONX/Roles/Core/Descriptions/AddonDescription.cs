@@ -4,7 +4,7 @@ namespace TONX.Roles.Core.Descriptions;
 
 public static class AddonDescription
 {
-    public static string FullFormatHelp(PlayerControl player)
+    public static string FullFormatHelpByPlayer(PlayerControl player)
     {
         var builder = new StringBuilder(512);
         var subRoles = player?.GetCustomSubRoles();
@@ -16,13 +16,28 @@ public static class AddonDescription
         foreach (var subRole in subRoles)
         {
             if (subRoles.IndexOf(subRole) != 0) builder.AppendFormat("<size={0}>\n", BlankLineSize);
-            builder.AppendFormat("<size={0}>{1}\n", FirstHeaderSize, Translator.GetRoleString(subRole.ToString()).Color(Utils.GetRoleColor(subRole)));
+            builder.AppendFormat("<size={0}>{1}\n", FirstHeaderSize, Translator.GetRoleString(subRole.ToString()).Color(Utils.GetRoleColor(subRole).ToReadableColor()));
             builder.AppendFormat("<size={0}>{1}\n", BodySize, Translator.GetString($"{subRole}InfoLong"));
+            // 职业设定
+            if (Options.CustomRoleSpawnChances.TryGetValue(subRole, out var opt))
+                Utils.ShowChildrenSettings(opt, ref builder, forChat: true);
         }
 
         return builder.ToString();
     }
+    public static string FullFormatHelpBySubRole(CustomRoles subRole)
+    {
+        var builder = new StringBuilder(512);
+        builder.AppendFormat("<size={0}>\n", BlankLineSize);
+        builder.AppendFormat("<size={0}>{1}\n", FirstHeaderSize, Translator.GetRoleString(subRole.ToString()).Color(Utils.GetRoleColor(subRole).ToReadableColor()));
+        builder.AppendFormat("<size={0}>{1}\n", BodySize, Translator.GetString($"{subRole}InfoLong"));
+        // 职业设定
+        if (Options.CustomRoleSpawnChances.TryGetValue(subRole, out var opt))
+            Utils.ShowChildrenSettings(opt, ref builder, forChat: true);
 
+
+        return builder.ToString();
+    }
     public const string FirstHeaderSize = "130%";
     public const string SecondHeaderSize = "100%";
     public const string BodySize = "70%";

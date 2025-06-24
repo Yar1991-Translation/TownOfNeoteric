@@ -33,6 +33,7 @@ public sealed class Paranoia : RoleBase
     }
 
     private int SkillLimit;
+    private int oldSkillLimit;
     private static void SetupOptionItem()
     {
         OptionSkillNums = IntegerOptionItem.Create(RoleInfo, 10, OptionName.ParanoiaNumOfUseButton, new(1, 99, 1), 3, false)
@@ -40,7 +41,7 @@ public sealed class Paranoia : RoleBase
         OptionSkillCooldown = FloatOptionItem.Create(RoleInfo, 11, OptionName.ParanoiaVentCooldown, new(2.5f, 180f, 2.5f), 10f, false)
             .SetValueFormat(OptionFormat.Seconds);
     }
-    public override void Add() => SkillLimit = OptionSkillNums.GetInt();
+    public override void Add() => oldSkillLimit = SkillLimit = OptionSkillNums.GetInt();
     public override void ApplyGameOptions(IGameOptions opt)
     {
         AURoleOptions.EngineerCooldown =
@@ -64,9 +65,15 @@ public sealed class Paranoia : RoleBase
         if (SkillLimit >= 1)
         {
             var user = physics.myPlayer;
-            physics.RpcBootFromVent(ventId);
-            user?.NoCheckStartMeeting(user?.Data);
-            SkillLimit--;
+            //ホスト視点、vent処理中に会議を呼ぶとベントの矢印が残るので遅延させる
+            _ = new LateTask(() => 
+            {
+                user?.NoCheckStartMeeting(user?.Data);
+                SkillLimit--;
+            }, 0.1f, "ParanoiaPortableButton");
+
+            //ポータブルボタン時はベントから追い出す必要はない
+            return true;
         }
         else
         {
@@ -76,7 +83,11 @@ public sealed class Paranoia : RoleBase
     }
     public override void NotifyOnMeetingStart(ref List<(string, byte, string)> msgToSend)
     {
-        msgToSend.Add((Translator.GetString("SkillUsedLeft") + SkillLimit.ToString(), Player.PlayerId, null));
+        if (SkillLimit != oldSkillLimit)
+        {
+            oldSkillLimit = SkillLimit;
+            msgToSend.Add((Translator.GetString("SkillUsedLeft") + SkillLimit.ToString(), Player.PlayerId, "<color=#aaaaff>" + Translator.GetString("DefaultSystemMessageTitle") + "</color>"));
+        }
     }
-    public override void OnExileWrapUp(GameData.PlayerInfo exiled, ref bool DecidedWinner) => Player.RpcResetAbilityCooldown();
+    public override int OverrideAbilityButtonUsesRemaining() => SkillLimit;
 }

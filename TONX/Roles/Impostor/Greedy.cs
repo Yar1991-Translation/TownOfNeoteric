@@ -51,6 +51,4 @@ public sealed class Greedy : RoleBase, IImpostor
         Player.ResetKillCooldown();
         Player.SyncSettings();
     }
-    public override void OnExileWrapUp(GameData.PlayerInfo exiled, ref bool DecidedWinner)
-        => Player.RpcResetAbilityCooldown();
 }

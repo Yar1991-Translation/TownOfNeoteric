@@ -1,12 +1,44 @@
 using HarmonyLib;
 using System.Linq;
 using System.Text;
+using TONX.Attributes;
 using TONX.Roles.Core;
 using TONX.Roles.Core.Interfaces;
 using UnityEngine;
+using TONX.Modules;
 using static TONX.Translator;
+using System;
 
 namespace TONX;
+
+class HudManagerInitializePatch
+{
+    public static PassiveButton RoleInfoButton;
+    [GameModuleInitializer]
+    public static void CreateRoleInfoButton()
+    {
+        if (!GameStates.IsModHost || Options.CurrentGameMode == CustomGameMode.SoloKombat) return;
+        var template = HudManager.Instance.MapButton;
+        RoleInfoButton = UnityEngine.Object.Instantiate(template, template.transform.parent);
+        RoleInfoButton.OnClick.AddListener((Action)(() =>
+        {
+            if (GameStates.IsInGame && (GameStates.IsCanMove || GameStates.IsMeeting) && Options.CurrentGameMode == CustomGameMode.Standard)
+            {
+                if (InGameRoleInfoMenu.Showing) InGameRoleInfoMenu.Hide();
+                else
+                {
+                    InGameRoleInfoMenu.SetRoleInfoRef(PlayerControl.LocalPlayer);
+                    InGameRoleInfoMenu.Show();
+                }
+                RoleInfoButton.SelectButton(InGameRoleInfoMenu.Showing);
+            }
+        }));
+        RoleInfoButton.inactiveSprites.GetComponent<SpriteRenderer>().sprite = Utils.LoadSprite("TONX.Resources.Images.UI.RoleInfoButton-inactive.png", 100f);
+        RoleInfoButton.activeSprites.GetComponent<SpriteRenderer>().sprite = Utils.LoadSprite("TONX.Resources.Images.UI.RoleInfoButton-active.png", 100f);
+        RoleInfoButton.selectedSprites.GetComponent<SpriteRenderer>().sprite = Utils.LoadSprite("TONX.Resources.Images.UI.RoleInfoButton-selected.png", 100f);
+        RoleInfoButton.gameObject.SetActive(true);
+    }
+}
 
 [HarmonyPatch(typeof(HudManager), nameof(HudManager.Update))]
 class HudManagerPatch
@@ -22,6 +54,15 @@ class HudManagerPatch
     public static void Postfix(HudManager __instance)
     {
         if (!GameStates.IsModHost) return;
+
+        if (HudManagerInitializePatch.RoleInfoButton != null) 
+        {
+            var template = HudManager.Instance.MapButton;
+            var RoleInfoButton = HudManagerInitializePatch.RoleInfoButton;
+            RoleInfoButton.gameObject.SetActive(template.isActiveAndEnabled);
+            RoleInfoButton.transform.localPosition = template.transform.localPosition - new Vector3(0f, 0.8f, 0f);
+        }
+
         var player = PlayerControl.LocalPlayer;
         if (player == null) return;
         var TaskTextPrefix = "";
@@ -69,6 +110,7 @@ class HudManagerPatch
                         else __instance.AbilityButton.SetInfiniteUses();
                     }
                 }
+                else if (player.GetCustomRole() == CustomRoles.KB_Normal) __instance.KillButton.OverrideText(GetString("DemonButtonText"));
 
                 //バウンティハンターのターゲットテキスト
                 if (LowerInfoText == null)
@@ -92,6 +134,11 @@ class HudManagerPatch
                     LowerInfoText.enabled = false;
                 }
 
+                if (player.Is(CustomRoles.Madmate) || player.GetCustomRole() is CustomRoles.Jester)
+                {
+                    TaskTextPrefix += GetString(StringNames.FakeTasks);
+                }
+
                 if (player.CanUseKillButton())
                 {
                     __instance.KillButton.ToggleVisible(player.IsAlive() && GameStates.IsInTask);
@@ -102,11 +149,7 @@ class HudManagerPatch
                     __instance.KillButton.SetDisabled();
                     __instance.KillButton.ToggleVisible(false);
                 }
-                if (player.Is(CustomRoles.Madmate) || player.GetCustomRole() is CustomRoles.Jester)
-                {
-                    TaskTextPrefix += GetString(StringNames.FakeTasks);
-                }
-
+                
                 bool CanUseVent = player.CanUseImpostorVentButton();
                 __instance.ImpostorVentButton.ToggleVisible(CanUseVent);
                 player.Data.Role.CanVent = CanUseVent;
@@ -118,6 +161,7 @@ class HudManagerPatch
                 __instance.KillButton.Hide();
                 __instance.AbilityButton.Show();
                 __instance.AbilityButton.OverrideText(GetString(StringNames.HauntAbilityName));
+                __instance.AbilityButton.SetInfiniteUses();
                 if (LowerInfoText != null) LowerInfoText.enabled = false;
             }
         }
@@ -197,6 +241,7 @@ class SetHudActivePatch
         __instance.ReportButton.ToggleVisible(!GameStates.IsLobby && isActive);
         if (!GameStates.IsModHost) return;
         IsActive = isActive;
+        if (GameStates.IsLobby) return;
         if (!isActive) return;
 
         var player = PlayerControl.LocalPlayer;
@@ -243,6 +288,7 @@ class TaskPanelBehaviourPatch
     // タスク表示の文章が更新・適用された後に実行される
     public static void Postfix(TaskPanelBehaviour __instance)
     {
+        if (GameStates.IsLobby) return;
         if (!GameStates.IsModHost) return;
         PlayerControl player = PlayerControl.LocalPlayer;
 

@@ -37,11 +37,18 @@ internal static class CustomRoleSelector
         List<CustomRoles> ImpRateList = new();
         List<CustomRoles> NeutralRateList = new();
 
+        if (Options.CurrentGameMode == CustomGameMode.SoloKombat)
+        {
+            RoleResult = new();
+            foreach (var pc in Main.AllAlivePlayerControls) RoleResult.Add(pc, pc.AmOwner && Options.EnableGM.GetBool() ? CustomRoles.GM : CustomRoles.KB_Normal);
+            return;
+        }
+
         foreach (var cr in Enum.GetValues(typeof(CustomRoles)))
         {
             CustomRoles role = (CustomRoles)Enum.Parse(typeof(CustomRoles), cr.ToString());
             if (role.IsVanilla() || role.IsAddon() || !Options.CustomRoleSpawnChances.TryGetValue(role, out var option) || option.Selections.Length != 3) continue;
-            if (role is CustomRoles.GM or CustomRoles.NotAssigned) continue;
+            if (role is CustomRoles.GM or CustomRoles.NotAssigned or CustomRoles.KB_Normal) continue;
             if (role is CustomRoles.Mare or CustomRoles.Concealer && Main.NormalOptions.MapId == 5) continue;
             for (int i = 0; i < role.GetAssignCount(); i++)
                 roleList.Add(role);
@@ -60,6 +67,16 @@ internal static class CustomRoleSelector
             if (role.IsImpostor()) ImpRateList.Add(role);
             else if (role.IsNeutral()) NeutralRateList.Add(role);
             else roleRateList.Add(role);
+        }
+        
+        if (!Options.DisableHiddenRoles.GetBool())
+        {
+            foreach (var role in roleList.Where(x => x.GetRoleInfo()?.Hidden ?? false))
+            {
+                if (role.IsImpostor()) ImpOnList.Add(role);
+                else if (role.IsNeutral()) NeutralOnList.Add(role);
+                else roleOnList.Add(role);
+            }
         }
 
         // 抽取优先职业（内鬼）
@@ -203,7 +220,7 @@ internal static class CustomRoleSelector
             AllPlayer.RemoveAt(0);
             rolesToAssign.RemoveAt(roleId);
 
-        EndOfWhile:;
+        EndOfWhile:
             if (delPc != null)
             {
                 AllPlayer.Remove(delPc);
@@ -220,13 +237,22 @@ internal static class CustomRoleSelector
 
     public static int addScientistNum = 0;
     public static int addEngineerNum = 0;
+    public static int addTrackerNum = 0;
+    public static int addNoisemakerNum = 0; 
+    public static int addPhantomNum = 0;
     public static int addShapeshifterNum = 0;
     public static void CalculateVanillaRoleCount()
     {
+        if (Options.CurrentGameMode == CustomGameMode.SoloKombat) return;
+
         // 计算原版特殊职业数量
         addEngineerNum = 0;
         addScientistNum = 0;
         addShapeshifterNum = 0;
+        addNoisemakerNum = 0;
+        addPhantomNum = 0;
+
+        addTrackerNum = 0;
         foreach (var role in AllRoles)
         {
             switch (role.GetRoleInfo()?.BaseRoleType.Invoke())
@@ -234,6 +260,9 @@ internal static class CustomRoleSelector
                 case RoleTypes.Scientist: addScientistNum++; break;
                 case RoleTypes.Engineer: addEngineerNum++; break;
                 case RoleTypes.Shapeshifter: addShapeshifterNum++; break;
+                case RoleTypes.Tracker: addTrackerNum++; break;
+                case RoleTypes.Noisemaker: addNoisemakerNum++; break;
+                case RoleTypes.Phantom: addPhantomNum++; break;
             }
         }
     }
@@ -244,6 +273,9 @@ internal static class CustomRoleSelector
             RoleTypes.Engineer => addEngineerNum,
             RoleTypes.Scientist => addScientistNum,
             RoleTypes.Shapeshifter => addShapeshifterNum,
+            RoleTypes.Tracker => addTrackerNum,
+            RoleTypes.Noisemaker => addNoisemakerNum,
+            RoleTypes.Phantom => addPhantomNum,
             _ => 0
         };
     }
@@ -262,13 +294,14 @@ internal static class CustomRoleSelector
     public static List<CustomRoles> AddonRolesList = new();
     public static void SelectAddonRoles()
     {
+        if (Options.CurrentGameMode == CustomGameMode.SoloKombat) return;
+
         AddonRolesList = new();
         foreach (var cr in Enum.GetValues(typeof(CustomRoles)))
         {
             CustomRoles role = (CustomRoles)Enum.Parse(typeof(CustomRoles), cr.ToString());
             if (!role.IsAddon()) continue;
-            //if (role is CustomRoles.Madmate && Options.MadmateSpawnMode.GetInt() != 0) continue;
-            if (role is CustomRoles.Lovers or CustomRoles.LastImpostor or CustomRoles.Workhorse) continue;
+            if (role is CustomRoles.Lovers or CustomRoles.LastImpostor or CustomRoles.Workhorse or CustomRoles.Madmate) continue;
             AddonRolesList.Add(role);
         }
     }

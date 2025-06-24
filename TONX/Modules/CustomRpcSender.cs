@@ -44,7 +44,7 @@ public class CustomRpcSender
         currentState = State.Ready;
         Logger.Info($"\"{name}\" is ready", "CustomRpcSender");
     }
-    public static CustomRpcSender Create(string name = "No Name Sender", SendOption sendOption = SendOption.None, bool isUnsafe = false)
+    public static CustomRpcSender Create(string name = "No Name Sender", SendOption sendOption = SendOption.Reliable, bool isUnsafe = false)
     {
         return new CustomRpcSender(name, sendOption, isUnsafe);
     }
@@ -256,6 +256,7 @@ public static class CustomRpcSenderExtensions
     {
         sender.AutoStartRpc(player.NetId, (byte)RpcCalls.SetRole, targetClientId)
             .Write((ushort)role)
+            .Write(false)
             .EndRpc();
     }
     public static void RpcMurderPlayer(this CustomRpcSender sender, PlayerControl player, PlayerControl target, int targetClientId = -1)
@@ -263,6 +264,26 @@ public static class CustomRpcSenderExtensions
         sender.AutoStartRpc(player.NetId, (byte)RpcCalls.MurderPlayer, targetClientId)
             .WriteNetObject(target)
             .Write((int)ExtendedPlayerControl.SucceededFlags)
+            .EndRpc();
+    }
+    public static void RpcSetName(this CustomRpcSender sender, PlayerControl player, string name, PlayerControl seer = null)
+    {
+        var targetClientId = seer == null ? -1 : seer.GetClientId();
+        if (seer == null)
+        {
+            foreach (var seer2 in Main.AllPlayerControls)
+            {
+                Main.LastNotifyNames[(player.PlayerId, seer2.PlayerId)] = name;
+            }
+        }
+        else
+        {
+            Main.LastNotifyNames[(player.PlayerId, seer.PlayerId)] = name;
+        }
+        sender.AutoStartRpc(player.NetId, (byte)RpcCalls.SetName, targetClientId)
+            .Write(player.Data.NetId)
+            .Write(name)
+            .Write(false)
             .EndRpc();
     }
 }

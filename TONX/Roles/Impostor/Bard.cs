@@ -16,6 +16,11 @@ public sealed class Bard : RoleBase, IImpostor
             4900,
             null,
             "ba|吟游詩人|诗人"
+#if RELEASE
+            ,
+            Hidden: true // For Debug
+#endif
+
         );
 
     public Bard(PlayerControl player)
@@ -28,7 +33,7 @@ public sealed class Bard : RoleBase, IImpostor
     private float KillCooldown;
     public override void Add() => KillCooldown = Options.DefaultKillCooldown;
     public float CalculateKillCooldown() => KillCooldown;
-    public override void OnExileWrapUp(GameData.PlayerInfo exiled, ref bool DecidedWinner)
+    public override void OnExileWrapUp(NetworkedPlayerInfo exiled, ref bool DecidedWinner)
     {
         if (exiled != null) KillCooldown /= 2;
     }

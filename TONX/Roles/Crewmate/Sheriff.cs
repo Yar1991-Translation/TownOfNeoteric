@@ -88,16 +88,16 @@ public sealed class Sheriff : RoleBase, IKiller, ISchrodingerCatOwner
         CanKillNeutralsMode = StringOptionItem.Create(RoleInfo, 14, OptionName.SheriffCanKillNeutralsMode, KillOption, 0, false, CanKillNeutrals);
         SetUpNeutralOptions(30);
         SetMadCanKill = BooleanOptionItem.Create(RoleInfo, 18, OptionName.SheriffSetMadCanKill, false, false);
-        MadCanKillImp = BooleanOptionItem.Create(RoleInfo, 19, OptionName.SheriffMadCanKillImp, true, false).SetParent(SetMadCanKill);
-        MadCanKillNeutral = BooleanOptionItem.Create(RoleInfo, 20, OptionName.SheriffMadCanKillNeutral, true, false).SetParent(SetMadCanKill);
-        MadCanKillCrew = BooleanOptionItem.Create(RoleInfo, 21, OptionName.SheriffMadCanKillCrew, true, false).SetParent(SetMadCanKill);
+        MadCanKillImp = BooleanOptionItem.Create(RoleInfo, 19, OptionName.SheriffMadCanKillImp, true, false, SetMadCanKill);
+        MadCanKillNeutral = BooleanOptionItem.Create(RoleInfo, 20, OptionName.SheriffMadCanKillNeutral, true, false, SetMadCanKill);
+        MadCanKillCrew = BooleanOptionItem.Create(RoleInfo, 21, OptionName.SheriffMadCanKillCrew, true, false, SetMadCanKill);
     }
     public static void SetUpNeutralOptions(int idOffset)
     {
         foreach (var neutral in CustomRolesHelper.AllStandardRoles.Where(x => x.IsNeutral()).ToArray())
         {
             if (neutral is CustomRoles.SchrodingerCat) continue;
-            SetUpKillTargetOption(neutral, idOffset, true, CanKillNeutrals);
+            SetUpKillTargetOption(neutral, idOffset, true, CanKillNeutralsMode);
             idOffset++;
         }
         foreach (var catType in EnumHelper.GetAllValues<SchrodingerCat.TeamType>())
@@ -106,7 +106,7 @@ public sealed class Sheriff : RoleBase, IKiller, ISchrodingerCatOwner
             {
                 continue;
             }
-            SetUpSchrodingerCatKillTargetOption(catType, idOffset, true, CanKillNeutrals);
+            SetUpSchrodingerCatKillTargetOption(catType, idOffset, true, CanKillNeutralsMode);
             idOffset++;
         }
     }
@@ -141,12 +141,12 @@ public sealed class Sheriff : RoleBase, IKiller, ISchrodingerCatOwner
     }
     private void SendRPC()
     {
-        using var sender = CreateSender(CustomRPC.SetSheriffShotLimit);
+        using var sender = CreateSender();
         sender.Writer.Write(ShotLimit);
     }
-    public override void ReceiveRPC(MessageReader reader, CustomRPC rpcType)
+    public override void ReceiveRPC(MessageReader reader)
     {
-        if (rpcType != CustomRPC.SetSheriffShotLimit) return;
+        
 
         ShotLimit = reader.ReadInt32();
     }
@@ -179,8 +179,8 @@ public sealed class Sheriff : RoleBase, IKiller, ISchrodingerCatOwner
                 killer.ResetKillCooldown();
                 return true;
             }
-            killer.RpcMurderPlayer(killer);
             PlayerState.GetByPlayerId(killer.PlayerId).DeathReason = CustomDeathReason.Misfire;
+            killer.RpcMurderPlayer(killer);
             if (!MisfireKillsTarget.GetBool()) return false;
         }
         return true;

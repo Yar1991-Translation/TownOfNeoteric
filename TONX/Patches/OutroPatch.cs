@@ -4,10 +4,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using TMPro;
+using UnityEngine;
 using TONX.Modules;
 using TONX.Roles.Core;
 using TONX.Templates;
-using UnityEngine;
 using static TONX.Translator;
 
 namespace TONX;
@@ -19,8 +19,11 @@ class EndGamePatch
     public static string KillLog = "";
     public static void Postfix(AmongUsClient __instance, [HarmonyArgument(0)] ref EndGameResult endGameResult)
     {
-        ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        //GameStatesのリセット
         GameStates.InGame = false;
+        GameStates.InTask = false;
 
         Logger.Info("-----------游戏结束-----------", "Phase");
         if (!GameStates.IsModHost) return;
@@ -45,7 +48,7 @@ class EndGamePatch
 
         Main.NormalOptions.KillCooldown = Options.DefaultKillCooldown;
         //winnerListリセット
-        TempData.winners = new Il2CppSystem.Collections.Generic.List<WinningPlayerData>();
+        EndGameResult.CachedWinners = new Il2CppSystem.Collections.Generic.List<CachedPlayerData>();
         var winner = new List<PlayerControl>();
         foreach (var pc in Main.AllPlayerControls)
         {
@@ -62,7 +65,7 @@ class EndGamePatch
         {
             if (CustomWinnerHolder.WinnerTeam is not CustomWinner.Draw && pc.Is(CustomRoles.GM)) continue;
 
-            TempData.winners.Add(new WinningPlayerData(pc.Data));
+            EndGameResult.CachedWinners.Add(new CachedPlayerData(pc.Data));
             Main.winnerList.Add(pc.PlayerId);
             Main.winnerNameList.Add(pc.GetRealName());
         }
@@ -104,6 +107,18 @@ class SetEverythingUpPatch
         string CustomWinnerText = "";
         var AdditionalWinnerText = new StringBuilder(32);
         string CustomWinnerColor = Utils.GetRoleColorCode(CustomRoles.Crewmate);
+
+        if (Options.CurrentGameMode == CustomGameMode.SoloKombat && CustomWinnerHolder.WinnerTeam is not CustomWinner.Error and not CustomWinner.None and not CustomWinner.Draw)
+        {
+            var winnerId = CustomWinnerHolder.WinnerIds.FirstOrDefault();
+            __instance.WinText.text = Main.AllPlayerNames[winnerId] + GetString("Win");
+            __instance.WinText.fontSize -= 5f;
+            __instance.WinText.color = Main.PlayerColors[winnerId];
+            __instance.BackgroundBar.material.color = new Color32(245, 82, 82, 255);
+            WinnerText.text = $"<color=#f55252>{GetString("ModeSoloKombat")}</color>";
+            WinnerText.color = Color.red;
+            goto EndOfText;
+        }
 
         var winnerRole = (CustomRoles)CustomWinnerHolder.WinnerTeam;
         if (winnerRole >= 0)
@@ -170,6 +185,7 @@ class SetEverythingUpPatch
         }
         LastWinsText = WinnerText.text.RemoveHtmlTags();
 
+    EndOfText:
 
         ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -179,19 +195,19 @@ class SetEverythingUpPatch
 
         var showInitially = Main.ShowResults.Value;
         showHideButton = new SimpleButton(
-           __instance.transform,
-           "ShowHideResultsButton",
-           new(-4.5f, 2.6f, -14f),  // BackgroundLayer(z=-13)より手前
-           new(0, 136, 209, byte.MaxValue),
-           new(0, 196, byte.MaxValue, byte.MaxValue),
-           () =>
-           {
-               var setToActive = !roleSummary.gameObject.activeSelf;
-               roleSummary.gameObject.SetActive(setToActive);
-               Main.ShowResults.Value = setToActive;
-               showHideButton.Label.text = GetString(setToActive ? "HideResults" : "ShowResults");
-           },
-           GetString(showInitially ? "HideResults" : "ShowResults"))
+            __instance.transform,
+            "ShowHideResultsButton",
+            new(-4.5f * Utils.GetResolutionOffset(Screen.width, Screen.height), 2.6f, -14f),  // BackgroundLayer(z=-13)より手前
+            new(0, 136, 209, byte.MaxValue),
+            new(0, 196, byte.MaxValue, byte.MaxValue),
+            () =>
+            {
+                var setToActive = !roleSummary.gameObject.activeSelf;
+                roleSummary.gameObject.SetActive(setToActive);
+                Main.ShowResults.Value = setToActive;
+                showHideButton.Label.text = GetString(setToActive ? "HideResults" : "ShowResults");
+            },
+            GetString(showInitially ? "HideResults" : "ShowResults"))
         {
             Scale = new(1.5f, 0.5f),
             FontSize = 2f,
@@ -209,13 +225,13 @@ class SetEverythingUpPatch
             sb.Append($"\n　 ").Append(EndGamePatch.SummaryText[id]);
         }
         roleSummary = TMPTemplate.Create(
-                "RoleSummaryText",
-                sb.ToString(),
-                Color.white,
-                1.25f,
-                TextAlignmentOptions.TopLeft,
-                setActive: showInitially,
-                parent: showHideButton.Button.transform);
+            "RoleSummaryText",
+            sb.ToString(),
+            Color.white,
+            1.25f,
+            TextAlignmentOptions.TopLeft,
+            setActive: showInitially,
+            parent: showHideButton.Button.transform);
         roleSummary.transform.localPosition = new(1.7f, -0.4f, 0f);
         roleSummary.transform.localScale = new Vector3(1.2f, 1.2f, 1f);
 

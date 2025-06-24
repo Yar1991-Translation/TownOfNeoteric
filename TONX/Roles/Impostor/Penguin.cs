@@ -62,14 +62,14 @@ class Penguin : RoleBase, IImpostor
     public override void ApplyGameOptions(IGameOptions opt) => AURoleOptions.ShapeshifterCooldown = AbductVictim != null ? AbductTimer : 255f;
     private void SendRPC()
     {
-        using var sender = CreateSender(CustomRPC.PenguinSync);
+        using var sender = CreateSender();
 
         sender.Writer.Write(AbductVictim?.PlayerId ?? 255);
     }
 
-    public override void ReceiveRPC(MessageReader reader, CustomRPC rpcType)
+    public override void ReceiveRPC(MessageReader reader)
     {
-        if (rpcType != CustomRPC.PenguinSync) return;
+        
 
         var victim = reader.ReadByte();
         if (victim == 255)
@@ -149,7 +149,7 @@ class Penguin : RoleBase, IImpostor
     {
         return AbductVictim != null;
     }
-    public override void OnReportDeadBody(PlayerControl reporter, GameData.PlayerInfo target)
+    public override void OnReportDeadBody(PlayerControl reporter, NetworkedPlayerInfo target)
     {
         stopCount = true;
         // 時間切れ状態で会議を迎えたらはしご中でも構わずキルする
@@ -165,14 +165,7 @@ class Penguin : RoleBase, IImpostor
             RemoveVictim();
         }
     }
-    public override void AfterMeetingTasks()
-    {
-        if (Main.NormalOptions.MapId == 4) return;
-
-        //マップがエアシップ以外
-        RestartAbduct();
-    }
-    public void OnSpawnAirship()
+    public override void OnSpawn(bool initialState)
     {
         RestartAbduct();
     }
@@ -180,11 +173,11 @@ class Penguin : RoleBase, IImpostor
     {
         if (AbductVictim != null)
         {
-            Player.SyncSettings();
-            Player.RpcResetAbilityCooldown();
             stopCount = false;
+            state = 0;
         }
     }
+    static int state = 0;
     public override void OnFixedUpdate(PlayerControl player)
     {
         if (!AmongUsClient.Instance.AmHost) return;
@@ -204,7 +197,7 @@ class Penguin : RoleBase, IImpostor
             {
                 // 先にIsDeadをtrueにする(はしごチェイス封じ)
                 AbductVictim.Data.IsDead = true;
-                GameData.Instance.SetDirty();
+                AbductVictim.Data.MarkDirty();
                 // ペンギン自身がはしご上にいる場合，はしごを降りてからキルする
                 if (!AbductVictim.MyPhysics.Animations.IsPlayingAnyLadderAnimation())
                 {
@@ -237,19 +230,28 @@ class Penguin : RoleBase, IImpostor
             // はしごの上にいるプレイヤーにはSnapToRPCが効かずホストだけ挙動が変わるため，一律でテレポートを行わない
             else if (!AbductVictim.MyPhysics.Animations.IsPlayingAnyLadderAnimation())
             {
-                var position = Player.transform.position;
-                if (Player.PlayerId != 0)
+                int div = 3;
+                state++;
+                if (state % div == 0)
                 {
-                    RandomSpawn.TP(AbductVictim.NetTransform, position);
-                }
-                else
-                {
-                    _ = new LateTask(() =>
+                    var position = Player.transform.position;
+                    if (Player.PlayerId != 0)
                     {
-                        if (AbductVictim != null)
-                            RandomSpawn.TP(AbductVictim.NetTransform, position);
+                        //サーバー負荷を減らすためSendOption.Noneを使用
+                        AbductVictim.RpcSnapToForced(position, SendOption.None);
                     }
-                    , 0.25f, "");
+                    else
+                    {
+                        _ = new LateTask(() =>
+                        {
+                            if (AbductVictim != null)
+                            {
+                                //サーバー負荷を減らすためSendOption.Noneを使用
+                                AbductVictim.RpcSnapToForced(position, SendOption.None);
+                            }
+                        }
+                        , 0.25f, "");
+                    }
                 }
             }
         }

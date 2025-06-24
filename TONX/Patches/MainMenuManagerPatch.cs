@@ -14,7 +14,7 @@ public class MainMenuManagerPatch
     public static MainMenuManager Instance { get; private set; }
 
     public static GameObject InviteButton;
-    public static GameObject WebsiteButton;
+    //public static GameObject WebsiteButton;
     public static GameObject UpdateButton;
     public static GameObject PlayButton;
 
@@ -47,8 +47,16 @@ public class MainMenuManagerPatch
     [HarmonyPatch(typeof(SignInStatusComponent), nameof(SignInStatusComponent.SetOnline)), HarmonyPostfix]
     public static void SetOnline_Postfix() { _ = new LateTask(() => { isOnline = true; NameTagManager.Init(); }, 0.1f, "Set Online Status"); }
     [HarmonyPatch(typeof(MainMenuManager), nameof(MainMenuManager.LateUpdate)), HarmonyPostfix]
-    public static void MainMenuManager_LateUpdate()
+    public static void MainMenuManager_LateUpdate(MainMenuManager __instance)
     {
+        static void AdjustCustomButtonSize(PassiveButton template, PassiveButton button)
+        {
+            button.inactiveSprites.GetComponent<SpriteRenderer>().size =
+            button.activeSprites.GetComponent<SpriteRenderer>().size =
+            template.activeSprites.GetComponent<SpriteRenderer>().size;
+        }
+        AdjustCustomButtonSize(__instance.creditsButton, InviteButton.GetComponent<PassiveButton>());
+
         CustomPopup.Update();
 
         if (GameObject.Find("MainUI") == null) ShowingPanel = false;
@@ -56,9 +64,10 @@ public class MainMenuManagerPatch
         if (TitleLogoPatch.RightPanel != null)
         {
             var pos1 = TitleLogoPatch.RightPanel.transform.localPosition;
-            Vector3 lerp1 = Vector3.Lerp(pos1, TitleLogoPatch.RightPanelOp + new Vector3((ShowingPanel ? 0f : 10f), 0f, 0f), Time.deltaTime * (ShowingPanel ? 3f : 2f));
+            var pos3 = new Vector3(TitleLogoPatch.RightPanelOp.x * Utils.GetResolutionOffset(Screen.width, Screen.height), TitleLogoPatch.RightPanelOp.y, TitleLogoPatch.RightPanelOp.z);
+            Vector3 lerp1 = Vector3.Lerp(pos1, ShowingPanel ? pos3 : TitleLogoPatch.RightPanelOp + new Vector3(10f, 0f, 0f), Time.deltaTime * (ShowingPanel ? 3f : 2f));
             if (ShowingPanel
-                ? TitleLogoPatch.RightPanel.transform.localPosition.x > TitleLogoPatch.RightPanelOp.x + 0.03f
+                ? TitleLogoPatch.RightPanel.transform.localPosition.x > pos3.x + 0.03f
                 : TitleLogoPatch.RightPanel.transform.localPosition.x < TitleLogoPatch.RightPanelOp.x + 9f
                 ) TitleLogoPatch.RightPanel.transform.localPosition = lerp1;
         }
@@ -99,20 +108,20 @@ public class MainMenuManagerPatch
         string extraLinkName = "Github";
         string extraLinkUrl = Main.GithubRepoUrl;
         bool extraLinkEnabled = Main.ShowGithubUrl;
-        if (IsChineseUser ? Main.ShowQQButton : Main.ShowDiscordButton)
-        {
-            extraLinkName = IsChineseUser ? "QQ群" : "Discord";
-            extraLinkUrl = IsChineseUser ? Main.QQInviteUrl : Main.DiscordInviteUrl;
-            extraLinkEnabled = true;
-        }
+        // if (IsChineseUser ? Main.ShowQQButton : Main.ShowDiscordButton)
+        // {
+        //     extraLinkName = IsChineseUser ? "QQ群" : "Discord";
+        //     extraLinkUrl = IsChineseUser ? Main.QQInviteUrl : Main.DiscordInviteUrl;
+        //     extraLinkEnabled = true;
+        // }
 
         if (InviteButton == null) InviteButton = CreatButton(extraLinkName, () => { Application.OpenURL(extraLinkUrl); });
         InviteButton.gameObject.SetActive(extraLinkEnabled);
         InviteButton.name = "TONX Extra Link Button";
 
-        if (WebsiteButton == null) WebsiteButton = CreatButton(GetString("Website"), () => Application.OpenURL(Main.WebsiteUrl));
-        WebsiteButton.gameObject.SetActive(Main.ShowWebsiteButton);
-        WebsiteButton.name = "TONX Website Button";
+        // if (WebsiteButton == null) WebsiteButton = CreatButton(GetString("Website"), () => Application.OpenURL(Main.WebsiteUrl));
+        // WebsiteButton.gameObject.SetActive(Main.ShowWebsiteButton);
+        // WebsiteButton.name = "TONX Website Button";
 
         if (UpdateButton == null)
         {

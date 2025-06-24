@@ -74,13 +74,13 @@ public sealed class BountyHunter : RoleBase, IImpostor
     }
     private void SendRPC(byte targetId)
     {
-        using var sender = CreateSender(CustomRPC.SetBountyTarget);
+        using var sender = CreateSender();
         sender.Writer.Write(targetId);
     }
 
-    public override void ReceiveRPC(MessageReader reader, CustomRPC rpcType)
+    public override void ReceiveRPC(MessageReader reader)
     {
-        if (rpcType != CustomRPC.SetBountyTarget) return;
+        
 
         byte targetId = reader.ReadByte();
 
@@ -183,11 +183,10 @@ public sealed class BountyHunter : RoleBase, IImpostor
         text = GetString("BountyHunterChangeButtonText");
         return true;
     }
-    public override void AfterMeetingTasks()
+    public override void OnSpawn(bool initialState)
     {
         if (Player.IsAlive())
         {
-            Player.RpcResetAbilityCooldown();
             ChangeTimer = 0f;
         }
     }

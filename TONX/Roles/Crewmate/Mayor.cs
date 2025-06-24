@@ -13,7 +13,7 @@ public sealed class Mayor : RoleBase
             CustomRoleTypes.Crewmate,
             20500,
             SetupOptionItem,
-            "my|���L|�ų�",
+            "my|市长",
             "#204d42"
         );
     public Mayor(PlayerControl player)
@@ -65,15 +65,21 @@ public sealed class Mayor : RoleBase
         if (LeftButtonCount > 0)
         {
             var user = physics.myPlayer;
-            physics.RpcBootFromVent(ventId);
-            user?.ReportDeadBody(null);
-            LeftButtonCount--;
+            //ホスト視点、vent処理中に会議を呼ぶとベントの矢印が残るので遅延させる
+            _ = new LateTask(() => 
+            {
+                user?.ReportDeadBody(null);
+                if (GameStates.IsMeeting) LeftButtonCount--;
+            }, 0.1f, "MayorPortableButton");
+
+            //ポータブルボタン時はベントから追い出す必要はない
+            return true;
         }
         return false;
     }
     public override (byte? votedForId, int? numVotes, bool doVote) ModifyVote(byte voterId, byte sourceVotedForId, bool isIntentional)
     {
-        // �ȶ���
+        // 既定値
         var (votedForId, numVotes, doVote) = base.ModifyVote(voterId, sourceVotedForId, isIntentional);
         if (voterId == Player.PlayerId)
         {
@@ -81,9 +87,5 @@ public sealed class Mayor : RoleBase
         }
         return (votedForId, numVotes, doVote);
     }
-    public override void AfterMeetingTasks()
-    {
-        if (HasPortableButton)
-            Player.RpcResetAbilityCooldown();
-    }
+    public override int OverrideAbilityButtonUsesRemaining() => LeftButtonCount;
 }

@@ -65,7 +65,7 @@ public sealed class SerialKiller : RoleBase, IImpostor
         SuicideTimer = null;
         Player.MarkDirtySettings();
     }
-    public override void OnReportDeadBody(PlayerControl reporter, GameData.PlayerInfo target)
+    public override void OnReportDeadBody(PlayerControl reporter, NetworkedPlayerInfo target)
     {
         SuicideTimer = null;
     }
@@ -100,11 +100,10 @@ public sealed class SerialKiller : RoleBase, IImpostor
         text = GetString("SerialKillerSuicideButtonText");
         return true;
     }
-    public override void AfterMeetingTasks()
+    public override void OnSpawn(bool initialState)
     {
         if (Player.IsAlive())
         {
-            Player.RpcResetAbilityCooldown();
             if (HasKilled())
                 SuicideTimer = 0f;
         }

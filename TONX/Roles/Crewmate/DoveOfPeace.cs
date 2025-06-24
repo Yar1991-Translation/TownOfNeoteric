@@ -78,16 +78,12 @@ public sealed class DoveOfPeace : RoleBase
             });
             Player.RPCPlayCustomSound("Dove");
             Player.Notify(string.Format(GetString("DoveOfPeaceOnGuard"), SkillLimit));
-            return true;
         }
         else
         {
             Player.Notify(GetString("DoveOfPeaceMaxUsage"));
-            return false;
         }
+        return false;
     }
-    public override void OnExileWrapUp(GameData.PlayerInfo exiled, ref bool DecidedWinner)
-    {
-        Player.RpcResetAbilityCooldown();
-    }
+    public override int OverrideAbilityButtonUsesRemaining() => SkillLimit;
 }

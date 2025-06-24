@@ -15,7 +15,7 @@ public sealed class Jester : RoleBase
             CustomRoleTypes.Neutral,
             50000,
             SetupOptionItem,
-            "je|Ğ¡³ó|³ó»Ê",
+            "je|å°ä¸‘|ä¸‘çš‡",
             "#ec62a5"
         );
     public Jester(PlayerControl player)
@@ -33,7 +33,7 @@ public sealed class Jester : RoleBase
     {
         OptionCanUseButton = BooleanOptionItem.Create(RoleInfo, 10, OptionName.JesterCanUseButton, false, false);
     }
-    public override Action CheckExile(GameData.PlayerInfo exiled, ref bool DecidedWinner, ref List<string> WinDescriptionText)
+    public override Action CheckExile(NetworkedPlayerInfo exiled, ref bool DecidedWinner, ref List<string> WinDescriptionText)
     {
         if (!AmongUsClient.Instance.AmHost || Player.PlayerId != exiled.PlayerId) return null;
 
@@ -45,11 +45,11 @@ public sealed class Jester : RoleBase
             CustomWinnerHolder.WinnerIds.Add(Player.PlayerId);
         };
     }
-    public override bool OnCheckReportDeadBody(PlayerControl reporter, GameData.PlayerInfo target)
+    public override bool OnCheckReportDeadBody(PlayerControl reporter, NetworkedPlayerInfo target)
     {
         if (Is(reporter) && target == null && !OptionCanUseButton.GetBool())
         {
-            Logger.Info("Òò½ûÖ¹Ğ¡³óÅÄµÆÈ¡Ïû»áÒé", "Jester.OnCheckReportDeadBody");
+            Logger.Info("å› ç¦æ­¢å°ä¸‘æ‹ç¯å–æ¶ˆä¼šè®®", "Jester.OnCheckReportDeadBody");
             return false;
         }
         return true;

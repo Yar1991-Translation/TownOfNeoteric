@@ -3,7 +3,7 @@ using HarmonyLib;
 using System.Linq;
 using TONX.Modules;
 using TONX.Roles.Core;
-
+using UnityEngine;
 using static TONX.Translator;
 
 namespace TONX.Roles.Crewmate;
@@ -40,8 +40,8 @@ public sealed class Grenadier : RoleBase
         GrenadierCanAffectNeutral,
     }
 
-    private long BlindingStartTime;
-    private long MadBlindingStartTime;
+    private float SkillTimer;
+    private float MadSkillTimer;
     private static void SetupOptionItem()
     {
         OptionSkillCooldown = FloatOptionItem.Create(RoleInfo, 10, OptionName.GrenadierSkillCooldown, new(2.5f, 180f, 2.5f), 20f, false)
@@ -49,17 +49,18 @@ public sealed class Grenadier : RoleBase
         OptionSkillDuration = FloatOptionItem.Create(RoleInfo, 11, OptionName.GrenadierSkillDuration, new(2.5f, 180f, 2.5f), 20f, false)
             .SetValueFormat(OptionFormat.Seconds);
         OptionCauseVision = FloatOptionItem.Create(RoleInfo, 12, OptionName.GrenadierCauseVision, new(0f, 5f, 0.05f), 0.3f, false)
-            .SetValueFormat(OptionFormat.Seconds);
+            .SetValueFormat(OptionFormat.Multiplier);
         OptionCanAffectNeutral = BooleanOptionItem.Create(RoleInfo, 13, OptionName.GrenadierCanAffectNeutral, false, false);
     }
     public override void Add()
     {
-        BlindingStartTime = 0;
-        MadBlindingStartTime = 0;
+        SkillTimer = -1f;
+        MadSkillTimer = -1f;
     }
     public override void ApplyGameOptions(IGameOptions opt)
     {
-        AURoleOptions.EngineerCooldown = OptionSkillCooldown.GetFloat();
+        AURoleOptions.EngineerCooldown = SkillTimer >= 0 || MadSkillTimer >= 0 ?
+            OptionSkillDuration.GetFloat() : OptionSkillCooldown.GetFloat();
         AURoleOptions.EngineerInVentMaxTime = 1f;
     }
     public override bool GetAbilityButtonText(out string text)
@@ -71,56 +72,59 @@ public sealed class Grenadier : RoleBase
     {
         if (Player.Is(CustomRoles.Madmate))
         {
-            MadBlindingStartTime = Utils.GetTimeStamp();
+            MadSkillTimer = 0f;
             Main.AllPlayerControls.Where(x => x.IsModClient()).Where(x => !x.IsImp() && !x.Is(CustomRoles.Madmate)).Do(x => x.RPCPlayCustomSound("FlashBang"));
         }
         else
         {
-            BlindingStartTime = Utils.GetTimeStamp();
+            SkillTimer = 0f;
             Main.AllPlayerControls.Where(x => x.IsModClient()).Where(x => x.IsImp() || (x.IsNeutral() && OptionCanAffectNeutral.GetBool())).Do(x => x.RPCPlayCustomSound("FlashBang"));
         }
         if (!Player.IsModClient()) Player.RpcProtectedMurderPlayer();
         Player.RPCPlayCustomSound("FlashBang");
         Player.Notify(GetString("GrenadierSkillInUse"), OptionSkillDuration.GetFloat());
         Utils.MarkEveryoneDirtySettings();
-        return true;
+        return false;
     }
     public override void OnFixedUpdate(PlayerControl player)
     {
         if (!AmongUsClient.Instance.AmHost) return;
-        if (BlindingStartTime != 0 && BlindingStartTime + OptionSkillDuration.GetFloat() < Utils.GetTimeStamp())
+        if (SkillTimer == -1 && MadSkillTimer == -1) return;
+        if (SkillTimer > OptionSkillDuration.GetFloat())
         {
-            BlindingStartTime = 0;
+            SkillTimer = -1f;
             Player.RpcProtectedMurderPlayer();
+            Player.SyncSettings();
+            Player.RpcResetAbilityCooldown();
             Player.Notify(GetString("GrenadierSkillStop"));
             Utils.MarkEveryoneDirtySettings();
         }
-        if (MadBlindingStartTime != 0 && MadBlindingStartTime + OptionSkillDuration.GetFloat() < Utils.GetTimeStamp())
+        if (MadSkillTimer > OptionSkillDuration.GetFloat())
         {
-            MadBlindingStartTime = 0;
+            MadSkillTimer = -1f;
             Player.RpcProtectedMurderPlayer();
+            Player.SyncSettings();
+            Player.RpcResetAbilityCooldown();
             Player.Notify(GetString("GrenadierSkillStop"));
             Utils.MarkEveryoneDirtySettings();
         }
-    }
-    public override void OnExileWrapUp(GameData.PlayerInfo exiled, ref bool DecidedWinner)
-    {
-        Player.RpcResetAbilityCooldown();
+        if (SkillTimer >= 0) SkillTimer += Time.fixedDeltaTime;
+        if (MadSkillTimer >= 0) MadSkillTimer += Time.fixedDeltaTime;
     }
     public static bool IsBlinding(PlayerControl target)
     {
         foreach (var pc in Main.AllAlivePlayerControls.Where(x => x.Is(CustomRoles.Grenadier)))
         {
             if (pc.GetRoleClass() is not Grenadier roleClass) continue;
-            if (roleClass.BlindingStartTime != 0)
+            if (roleClass.SkillTimer >= 0 && roleClass.SkillTimer <= OptionSkillDuration.GetFloat())
             {
-                if ((target.IsImp() || target.Is(CustomRoles.Madmate))
-                    || target.IsNeutral() && OptionCanAffectNeutral.GetBool())
+                if (target.IsImp() || target.Is(CustomRoles.Madmate)
+                    || (target.IsNeutral() && OptionCanAffectNeutral.GetBool()))
                 {
                     return true;
                 }
             }
-            else if (roleClass.MadBlindingStartTime != 0)
+            else if (roleClass.MadSkillTimer >= 0 && roleClass.MadSkillTimer <= OptionSkillDuration.GetFloat())
             {
                 if (!target.IsImp() && !target.Is(CustomRoles.Madmate))
                     return true;

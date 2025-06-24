@@ -1,7 +1,7 @@
 ﻿using AmongUs.GameOptions;
 using TONX.Modules;
 using TONX.Roles.Core;
-
+using UnityEngine;
 using static TONX.Translator;
 
 namespace TONX.Roles.Crewmate;
@@ -37,7 +37,7 @@ public sealed class Veteran : RoleBase
     }
 
     private int SkillLimit;
-    private long ProtectStartTime;
+    private float SkillTimer;
     private static void SetupOptionItem()
     {
         OptionSkillCooldown = FloatOptionItem.Create(RoleInfo, 10, OptionName.VeteranSkillCooldown, new(2.5f, 180f, 2.5f), 20f, false)
@@ -50,14 +50,13 @@ public sealed class Veteran : RoleBase
     public override void Add()
     {
         SkillLimit = OptionSkillNums.GetInt();
-        ProtectStartTime = 0;
+        SkillTimer = -1f;
     }
     public override void ApplyGameOptions(IGameOptions opt)
     {
         AURoleOptions.EngineerCooldown =
-            SkillLimit <= 0
-            ? 255f
-            : OptionSkillCooldown.GetFloat();
+            SkillTimer >= 0 ? OptionSkillDuration.GetFloat() :
+            (SkillLimit <= 0 ? 255f : OptionSkillCooldown.GetFloat());
         AURoleOptions.EngineerInVentMaxTime = 1f;
     }
     public override bool GetAbilityButtonText(out string text)
@@ -75,33 +74,36 @@ public sealed class Veteran : RoleBase
         if (SkillLimit >= 1)
         {
             SkillLimit--;
-            ProtectStartTime = Utils.GetTimeStamp();
+            SkillTimer = 0f;
             if (!Player.IsModClient()) Player.RpcProtectedMurderPlayer(Player);
             Player.RPCPlayCustomSound("Gunload");
-            Player.Notify(GetString("VeteranOnGuard"), SkillLimit);
-            return true;
+            Player.Notify(GetString("VeteranOnGuard"), OptionSkillDuration.GetFloat());
+            Player.MarkDirtySettings();
         }
         else
         {
             Player.Notify(GetString("SkillMaxUsage"));
-            return false;
         }
+        return false;
     }
     public override void OnFixedUpdate(PlayerControl player)
     {
         if (!AmongUsClient.Instance.AmHost) return;
-        if (ProtectStartTime == 0) return;
-        if (ProtectStartTime + OptionSkillDuration.GetFloat() < Utils.GetTimeStamp())
+        if (SkillTimer == -1f) return;
+        if (SkillTimer > OptionSkillDuration.GetFloat())
         {
-            ProtectStartTime = 0;
+            SkillTimer = -1f;
             player.RpcProtectedMurderPlayer();
+            player.SyncSettings();
+            player.RpcResetAbilityCooldown();
             player.Notify(string.Format(GetString("VeteranOffGuard"), SkillLimit));
         }
+        else SkillTimer += Time.fixedDeltaTime;
     }
     public override bool OnCheckMurderAsTarget(MurderInfo info)
     {
         if (info.IsSuicide) return true;
-        if (ProtectStartTime != 0 && ProtectStartTime + OptionSkillDuration.GetFloat() >= Utils.GetTimeStamp())
+        if (SkillTimer >= 0 && SkillTimer <= OptionSkillDuration.GetFloat())
         {
             var (killer, target) = info.AttemptTuple;
             target.RpcMurderPlayerV2(killer);
@@ -110,8 +112,5 @@ public sealed class Veteran : RoleBase
         }
         return true;
     }
-    public override void OnExileWrapUp(GameData.PlayerInfo exiled, ref bool DecidedWinner)
-    {
-        Player.RpcResetAbilityCooldown();
-    }
+    public override int OverrideAbilityButtonUsesRemaining() => SkillLimit;
 }
